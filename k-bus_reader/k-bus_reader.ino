@@ -1,27 +1,64 @@
-#define IDLE_WAIT_INTERVAL 50 //ms
-#define KBUS_MAX_DATA_LEN 12
+/*
+MIT License
 
+Copyright (c) 2023 Takashi Hisamatsu
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+
+// If there is no new byte from RX buffer for more than IDLE_WAIT_INTERVAL, 
+// it is consiered as the k-bus is idle state.
+#define IDLE_WAIT_INTERVAL 50 //ms
+
+// defines related to K-Bus protocol
+#define KBUS_MAX_DATA_LEN 32
 #define KBUS_BYTE_POS_SRC 0
 #define KBUS_BYTE_POS_LEN 1
 #define KBUS_BYTE_POS_DST 2
 #define KBUS_BYTE_POS_DAT 3
 
-#define LED_RED 3
-#define LED_GREEN 4
-#define LED_BLUE 5
-#define LED_YELLOW 6
-
+// Debug related parameters/flags here
 #define DEBUG
-#define RICH_DEBUG
 
-enum busReadState
+
+// This program is designed based on a small statemachine.
+// There are three states that represent the bus state
+// unknown: The Arduino cannot tell whether some message is being
+//          sent over the k-bus or not.
+// idle: No message is currently being sent over the k-bus.
+// occupied: Some message is currently being sent over the k-bus.
+// invalidState: Just an initial value of variable.
+enum kBusState
 {
   unknown,
   idle,
-  readingBus,
+  occupied,
   invalidState
 };
 
+
+// The Arduino detects below events to run the statemachine.
+// intervalTimeout: No new byte is received from RX buffer consecutively for period of IDLE_WAIT_INTERVAL
+// srcByteRecv: The first byte of k-bus message is received.
+// xorOk: Whole k-bus message was received and checksum match.
+// xorOk: Whole k-bus message was received and checksum unmatch.
+// invalidLen: The second byte of k-bus message indicates more than 34 bytes. (32bytes for data and 2bytes for destination ID and checksum)
 enum kBusEvent
 {
   intervalTimeout,
@@ -32,19 +69,21 @@ enum kBusEvent
   invalidEvent
 };
 
+
+// Data struct of a k-bus message.
 typedef struct 
 {
-  byte src;
-  byte len;
-  byte dst;
-  byte dat[KBUS_MAX_DATA_LEN];
-  byte chk;
-  byte xorVal;
+  byte src; // Source ID
+  byte len; // Total length of below bytes
+  byte dst; // Destination ID
+  byte dat[KBUS_MAX_DATA_LEN]; // Payload data
+  byte chk; // Checksum of the message
+  byte xorVal; // XOR calculation result by Arduino
 } kBusMessage;
 
 
 kBusMessage kBusBuf;
-busReadState state = invalidState;
+kBusState state = invalidState;
 unsigned char bitPos = 0;
 unsigned char bytePos = 0;
 byte byteBuf = 0;
@@ -66,7 +105,7 @@ void clearKbusBuf()
 
 void kBusStatemachine(kBusEvent evt)
 {
-  busReadState newState = invalidState;
+  kBusState newState = invalidState;
   switch(state)
   {
     case unknown:
@@ -78,10 +117,10 @@ void kBusStatemachine(kBusEvent evt)
     case idle:
       if(evt == srcByteRecv)
       {
-        newState = readingBus;
+        newState = occupied;
       }
       break;
-    case readingBus:
+    case occupied:
       if(evt == xorOk)
       {
         newState = idle;
@@ -106,7 +145,7 @@ void kBusStatemachine(kBusEvent evt)
         break;
       case idle:
         break;
-      case readingBus:
+      case occupied:
         break;
     }
   }
@@ -139,43 +178,16 @@ void kBusStatemachine(kBusEvent evt)
       break;
     case idle:
       break;
-    case readingBus:
+    case occupied:
       clearKbusBuf();
       kBusBuf.src = Serial1.read();
       bytePos++;
       break;
   }
   state = newState;
-#ifdef DEBUG
-  debugLed(state);
-#endif
 }
 
 #ifdef DEBUG
-void debugLed(busReadState state)
-{
-  switch(state)
-  {
-    case unknown:
-      digitalWrite(LED_RED, HIGH);
-      digitalWrite(LED_GREEN, HIGH);
-      digitalWrite(LED_BLUE, HIGH);
-      digitalWrite(LED_YELLOW, HIGH);
-      break;
-    case idle:
-      digitalWrite(LED_RED, LOW);
-      digitalWrite(LED_GREEN, HIGH);
-      digitalWrite(LED_BLUE, LOW);
-      digitalWrite(LED_YELLOW, LOW);
-      break;
-    case readingBus:
-      digitalWrite(LED_RED, LOW);
-      digitalWrite(LED_GREEN, LOW);
-      digitalWrite(LED_BLUE, HIGH);
-      digitalWrite(LED_YELLOW, LOW);
-      break;
-  }
-}
 
 void sendDebugSerial(kBusMessage msg)
 {
@@ -205,7 +217,6 @@ void setup() {
 
 #ifdef DEBUG
   Serial.begin(115200);
-  debugLed(state);
 #endif
 
   Serial1.begin(9600, SERIAL_8E1);
@@ -236,7 +247,7 @@ void loop() {
         event = srcByteRecv;
       }
       break;
-    case readingBus:
+    case occupied:
       if(Serial1.available())
       {
         switch(bytePos)
@@ -246,7 +257,7 @@ void loop() {
             kBusBuf.xorVal = kBusBuf.src ^ kBusBuf.len;
             
             //error check on length
-            if(kBusBuf.len > KBUS_MAX_DATA_LEN)
+            if(kBusBuf.len > KBUS_MAX_DATA_LEN + 2)
             {
               event = invalidLen;
             }
