@@ -10,7 +10,7 @@ No K-Bus specific IC needed. Just Arduino Nano Every board and some common elect
 
 ## Setup
 Below is just an example to get K-Bus signal input to Arduino Rx pin while dropping voltage to 5V.
-  ![Wiring](https://github.com/hismat/k-bus_reader/assets/13138692/888751c3-6ce5-4c42-88fd-442fac4d8dc0)
+![Wiring](https://github.com/hismat/k-bus_reader/blob/main/Wiring.png?raw=true)
   
 ## About code
 k-bus_reader is running a small statemachine with three state; unknown, idle and occupied which represent the bus state.
