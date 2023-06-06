@@ -13,7 +13,7 @@ Below is just an example to get K-Bus signal input to Arduino Rx pin while dropp
   
 ## About code
 k-bus_reader is running a small statemachine with three state; unknown, idle and occupied which represent the bus state.
-The program starts with unknown state as it cannot tell whether the itself started in the middle of K-Bus message transmission or not.
+The program starts with unknown state as it cannot tell whether the program started in the middle of K-Bus message transmission or not.
 If it was confirmed that there has been no signal was exchanged over the bus for pre-defined period of time (50 ms), k-bus_reader takes it as the bus is currently in idle state.
 Then, the state transits to occupied state when new byte available in the serial buffer. The new byte is taken as the source address, the first byte of K-Bus message.
 After all bytes of the K-Bus meesage were read, k-bus_reader checks the checksum calculation result and the state goes back to idle.
