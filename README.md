@@ -6,6 +6,7 @@ No K-Bus specific IC needed. Just Arduino Nano Every board and some common elect
 - Arduino Nano Every
 - USB cable to connect PC to the Arduino board
 - Resistance and diode for converting voltage level from 12V to 5V
+- Miscellaneous like lead wire and tools for wiring.
 
 ## Setup
 Below is just an example to get K-Bus signal input to Arduino Rx pin while dropping voltage to 5V.
