@@ -158,6 +158,7 @@ void kBusStatemachine(kBusEvent evt)
       case srcByteRecv:
         break;
       case xorOk:
+      // Here to add some task to be executed upon a new complete K-Bus message is received.
 #ifdef DEBUG
         sendDebugSerial(kBusBuf);
 #endif
